@@ -1,0 +1,104 @@
+
+services:
+  # 🟢 PostgreSQL Primary
+  postgres-primary:
+    image: postgres:15
+    container_name: pg_primary
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: feeddb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./app/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pg_primary_data:/var/lib/postgresql/data
+
+  # 🟡 PostgreSQL Replica
+  postgres-replica:
+    image: postgres:15
+    container_name: pg_replica
+    restart: always
+    environment: 
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: feeddb
+    ports:
+      - "5433:5432" 
+    volumes:
+      - ./app/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pg_replica_data:/var/lib/postgresql/data
+
+  # 🔴 Redis
+  redis:
+    image: redis:7
+    container_name: redis_cache
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --save "" --appendonly no
+
+  # 🔵 App instances
+  app1:
+    build: ./app
+    container_name: app1
+    restart: always
+    environment:
+      INSTANCE_ID: app1
+      PORT: 3000
+      DB_PRIMARY_HOST: postgres-primary
+      DB_REPLICA_HOST: postgres-replica
+      REDIS_HOST: redis
+    depends_on:
+      - postgres-primary
+      - postgres-replica
+      - redis
+
+  app2:
+    build: ./app
+    container_name: app2
+    restart: always
+    environment:
+      INSTANCE_ID: app2
+      PORT: 3000
+      DB_PRIMARY_HOST: postgres-primary
+      DB_REPLICA_HOST: postgres-replica
+      REDIS_HOST: redis
+    depends_on:
+      - postgres-primary
+      - postgres-replica
+      - redis
+
+  app3:
+    build: ./app
+    container_name: app3
+    restart: always
+    environment:
+      INSTANCE_ID: app3
+      PORT: 3000
+      DB_PRIMARY_HOST: postgres-primary
+      DB_REPLICA_HOST: postgres-replica
+      REDIS_HOST: redis
+    depends_on:
+      - postgres-primary
+      - postgres-replica
+      - redis
+
+  # ⚖️ Load Balancer
+  nginx:
+    image: nginx:latest
+    container_name: nginx_lb
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./app/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app1
+      - app2
+      - app3
+
+volumes:
+  pg_primary_data:
+  pg_replica_data:
